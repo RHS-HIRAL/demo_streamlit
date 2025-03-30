@@ -1,3 +1,4 @@
+'''
 # Import the required libraries: Streamlit, NumPy, and Pillow (PIL).
 import streamlit as st
 import pickle
@@ -120,3 +121,107 @@ with st.container():
     # Display the sample dataset in the Streamlit app.
     st.header("Sample Dataset")
     st.write(df)
+'''
+
+# Import necessary libraries
+import streamlit as st
+import pickle
+import numpy as np
+import pandas as pd
+from PIL import Image
+
+# Set up the Streamlit page configuration
+st.set_page_config(page_title="Timelytics", page_icon="📊", layout="wide")
+
+# App title and description
+st.title("Timelytics: Optimize Your Supply Chain with Advanced Forecasting")
+
+st.caption(
+    "Timelytics is an ensemble model that utilizes XGBoost, Random Forest, and SVM to forecast Order-to-Delivery (OTD) times. "
+    "By combining these three algorithms, Timelytics provides robust and reliable OTD time predictions to help businesses optimize their supply chain."
+)
+
+st.caption(
+    "Using historical data on order processing, production lead times, and shipping times, Timelytics helps businesses identify bottlenecks, reduce delays, "
+    "and improve efficiency in their logistics operations."
+)
+
+# --- Load the trained ensemble model ---
+@st.cache_resource
+def load_model():
+    try:
+        with open("voting_model.pkl", "rb") as f:
+            model = pickle.load(f)
+        return model
+    except (FileNotFoundError, pickle.UnpicklingError) as e:
+        st.error(f"Error loading model: {e}")
+        return None
+
+# Load the model
+voting_model = load_model()
+
+# --- Prediction Function ---
+def predict_wait_time(
+    purchase_dow, purchase_month, year, product_size_cm3, product_weight_g, 
+    geolocation_state_customer, geolocation_state_seller, distance
+):
+    """Predicts wait time in days using the trained model."""
+    if voting_model is None:
+        return "Error: Model not loaded"
+
+    # Convert input to NumPy array
+    input_data = np.array([[purchase_dow, purchase_month, year, product_size_cm3, 
+                            product_weight_g, geolocation_state_customer, 
+                            geolocation_state_seller, distance]])
+    
+    # Make prediction
+    with st.spinner("Predicting wait time..."):
+        prediction = voting_model.predict(input_data)
+    return round(prediction[0])
+
+# --- Sidebar Input Fields ---
+with st.sidebar:
+    st.image("./assets/supply_chain_optimisation.jpg", use_column_width=True)
+    st.header("Input Parameters")
+
+    purchase_dow = st.number_input("Purchased Day of the Week", min_value=0, max_value=6, step=1, value=3)
+    purchase_month = st.number_input("Purchased Month", min_value=1, max_value=12, step=1, value=1)
+    year = st.number_input("Purchased Year", min_value=2000, max_value=2030, value=2018)
+    product_size_cm3 = st.number_input("Product Size in cm³", min_value=0, value=9328)
+    product_weight_g = st.number_input("Product Weight in grams", min_value=0, value=1800)
+    geolocation_state_customer = st.number_input("Customer's State Code", min_value=0, value=10)
+    geolocation_state_seller = st.number_input("Seller's State Code", min_value=0, value=20)
+    distance = st.number_input("Distance (km)", min_value=0.0, value=475.35)
+
+    # Submit button
+    submit = st.button("Predict Wait Time!")
+
+# --- Output Section ---
+with st.container():
+    st.header("Output: Predicted Wait Time (Days)")
+
+    if submit:
+        result = predict_wait_time(
+            purchase_dow, purchase_month, year, product_size_cm3, 
+            product_weight_g, geolocation_state_customer, 
+            geolocation_state_seller, distance
+        )
+        st.success(f"Predicted Wait Time: **{result} days**")
+
+# --- Sample Dataset Display ---
+st.header("Sample Dataset")
+
+# Sample data
+sample_data = {
+    "Purchased Day of the Week": [0, 3, 1],
+    "Purchased Month": [6, 3, 1],
+    "Purchased Year": [2018, 2017, 2018],
+    "Product Size in cm³": [37206.0, 63714.0, 54816.0],
+    "Product Weight in grams": [16250.0, 7249.0, 9600.0],
+    "Geolocation State Customer": [25, 25, 25],
+    "Geolocation State Seller": [20, 7, 20],
+    "Distance (km)": [247.94, 250.35, 4.915]
+}
+
+df = pd.DataFrame(sample_data)
+st.write(df)
